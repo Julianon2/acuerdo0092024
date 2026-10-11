@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Juego de la Memoria — Reglamento del Aprendiz SENA | CADPH Garzón</title>
+<meta name="description" content="Juego de memoria por equipos basado en el Acuerdo 009 de 2024, Reglamento del Aprendiz SENA. CADPH Garzón, Huila.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%2339a900'/%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          sena: {
+            green: '#39a900',
+            hover: '#2e8b00',
+            dark: '#007832',
+            light: '#f2f9ed',
+            accent: '#4ade80'
+          },
+          portal: {
+            dark: '#0b3244',
+            teal: '#0e4359',
+            bar: '#082a38',
+            lightbg: '#f4f6f8',
+            card: '#ffffff'
+          }
+        },
+        fontFamily: {
+          sans: ['"Work Sans"', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif']
+        }
+      }
+    }
+  }
+</script>
+
+<style>
+  body {
+    font-family: 'Work Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  .bg-grid-dots {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.2px, transparent 1.2px);
+    background-size: 24px 24px;
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .custom-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+  .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 9999px; }
+
+  /* ---- Memory board / flip cards ---- */
+  .board-wrapper { perspective: 1200px; }
+
+  .mem-card {
+    position: relative;
+    height: 140px;
+    cursor: pointer;
+    transform-style: preserve-3d;
+    transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  @media (min-width: 640px) {
+    .mem-card { height: 170px; }
+  }
+  .mem-card.is-flipped { transform: rotateY(180deg); }
+  .mem-card.is-matched { transform: rotateY(180deg); cursor: default; }
+  .mem-card.is-locked { pointer-events: none; }
+
+  .mem-face {
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.28);
+  }
+
+  .mem-back {
+    background: linear-gradient(145deg, #0e4359, #082a38);
+    border: 1.5px solid rgba(255,255,255,0.12);
+  }
+  .mem-card:hover:not(.is-matched):not(.is-locked) .mem-back {
+    border-color: rgba(57,169,0,0.6);
+    box-shadow: 0 0 22px rgba(57,169,0,0.28);
+  }
+
+  .mem-front {
+    background: linear-gradient(145deg, #182f3a, #0c1f28);
+    transform: rotateY(180deg);
+    border: 1.5px solid rgba(255,255,255,0.1);
+  }
+  .mem-front-icon {
+    width: 56%;
+    height: 56%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 2px 10px var(--icon-color, #39a900));
+  }
+  .mem-front-icon svg {
+    width: 100%;
+    height: 100%;
+    color: var(--icon-color, #39a900);
+  }
+  .mem-card.is-matched .mem-front {
+    background: linear-gradient(145deg, #15303d, #0b1f29);
+    border-color: var(--icon-color, #39a900);
+    box-shadow: 0 0 26px color-mix(in srgb, var(--icon-color, #39a900) 55%, transparent);
+  }
+
+  /* ---- Modal ---- */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(4, 10, 15, 0.82);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200; padding: 16px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  .modal-overlay.active { opacity: 1; pointer-events: auto; }
+  .modal-box {
+    transform: scale(0.92);
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  .modal-overlay.active .modal-box { transform: scale(1); }
+
+  .quiz-opt {
+    text-align: left;
+    transition: all 0.18s ease;
+  }
+  .quiz-opt:hover:not(:disabled) {
+    border-color: rgba(57,169,0,0.55);
+    background: rgba(57,169,0,0.1);
+    transform: translateX(3px);
+  }
+  .quiz-opt.correct { background: rgba(57,169,0,0.22); border-color: #39a900; color: #bbf7d0; }
+  .quiz-opt.wrong { background: rgba(239,68,68,0.2); border-color: #ef4444; color: #fecaca; }
+  .quiz-opt:disabled { cursor: default; }
+
+  .toast {
+    position: fixed; top: -120px; left: 50%; transform: translateX(-50%) translateY(-20px);
+    z-index: 250; opacity: 0;
+    transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .toast.show { top: 16px; transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  .group-pill.is-active {
+    box-shadow: 0 0 0 2px var(--pill-color, #39a900), 0 0 18px rgba(57,169,0,0.35);
+  }
+</style>
+</head>
+<body class="min-h-screen flex flex-col antialiased text-white bg-[#0d3f54] selection:bg-sena-green selection:text-white">
+
+<!-- ================= BARRA SUPERIOR INSTITUCIONAL ================= -->
+<header class="w-full bg-portal-bar text-white h-12 px-3 sm:px-6 md:px-8 flex items-center justify-between z-40 select-none shadow-md flex-shrink-0 border-b border-white/10">
+  <div class="flex items-center space-x-2 sm:space-x-2.5 min-w-0 pr-2">
+    <div class="w-6 h-6 rounded-md bg-sena-green p-1 flex items-center justify-center flex-shrink-0 shadow-sm">
+      <svg class="w-full h-full text-white fill-current" viewBox="0 0 64 62" xmlns="http://www.w3.org/2000/svg">
+        <g transform="translate(-377 -19)">
+          <path d="M409.164 19C412.922 19 415.992 22.09 415.992 25.8778 415.992 29.6656 412.932 32.7556 409.164 32.7556 405.397 32.7556 402.336 29.6656 402.336 25.8778 402.336 22.09 405.407 19 409.164 19" fill="currentColor"/>
+          <path d="M384.305 41.1884 384.305 41.2183C384.285 41.3379 384.275 41.4177 384.275 41.4675 384.275 41.8264 384.474 42.0855 384.873 42.265 385.282 42.4344 385.9 42.5241 386.747 42.5241 387.395 42.5241 387.893 42.4543 388.262 42.3148 388.631 42.1752 388.81 41.9759 388.81 41.7267 388.81 41.3479 388.082 41.0489 386.647 40.8096 386.478 40.7797 386.348 40.7598 386.268 40.7498 386.179 40.7299 386.039 40.71 385.86 40.6801 383.567 40.3013 382.092 39.8926 381.434 39.454 381.115 39.2347 380.876 38.9855 380.706 38.6965 380.547 38.4074 380.467 38.0785 380.467 37.7096 380.467 36.8125 380.995 36.1248 382.052 35.6563 383.109 35.1878 384.654 34.9486 386.677 34.9486 388.7 34.9486 390.166 35.1678 391.133 35.6064 392.1 36.045 392.578 36.7228 392.578 37.6399L392.578 37.7495 388.78 37.7495 388.78 37.7096C388.78 37.3907 388.591 37.1614 388.202 36.992 387.813 36.8325 387.255 36.7428 386.508 36.7428 385.929 36.7428 385.481 36.8026 385.182 36.9122 384.863 37.0318 384.713 37.1913 384.713 37.4006 384.713 37.7794 385.541 38.1084 387.195 38.3675 387.514 38.4174 387.764 38.4572 387.943 38.4871 389.119 38.6865 389.966 38.8559 390.465 38.9955 390.963 39.135 391.392 39.3045 391.761 39.4939 392.159 39.7132 392.478 39.9923 392.698 40.3312 392.917 40.6701 393.027 41.0389 393.027 41.4476 393.027 42.3746 392.448 43.0823 391.302 43.5907 390.156 44.0891 388.501 44.3383 386.348 44.3383 384.195 44.3383 382.67 44.099 381.723 43.6206 380.766 43.1421 380.298 42.3746 380.298 41.308L380.298 41.1685 384.305 41.1685ZM394.711 44.1987 394.711 35.0881 405.546 35.0881 405.546 37.0518 398.778 37.0518 398.778 38.5071 405.028 38.5071 405.028 40.4508 398.778 40.4508 398.778 42.2151 405.795 42.2151 405.795 44.2087 394.711 44.2087ZM407.5 44.1987 407.5 35.0881 412.643 35.0881 418.155 41.2084 418.155 35.0881 422.063 35.0881 422.063 44.1987 416.72 44.1987 411.387 38.0585 411.387 44.1987 407.49 44.1987ZM432.569 40.5604 430.625 37.2511 428.572 40.5604 432.579 40.5604ZM426.369 44.1987 422.292 44.1987 428.592 35.0881 433.107 35.0881 439.118 44.1987 434.592 44.1987 433.675 42.554 427.366 42.554 426.389 44.1987Z" fill="currentColor"/>
+          <path d="M389.309 76.3351 385.67 72.9161 396.735 53.6881C397.333 52.6415 396.585 51.3257 395.379 51.3257L377.267 51.3257 377.267 46.5113 406.413 46.5113 389.309 76.3351Z" fill="currentColor"/>
+          <path d="M428.701 76.3351 432.34 72.9161 421.275 53.6881C420.677 52.6415 421.425 51.3257 422.631 51.3257L440.743 51.3257 440.743 46.5113 411.597 46.5113 428.701 76.3351Z" fill="currentColor"/>
+          <path d="M408.965 51.5949C408.965 51.5949 409.005 51.5251 409.005 51.5251L425.432 78.7174 421.066 80.99 410.48 63.2373C409.852 62.1907 408.347 62.1907 407.729 63.2373 404.2 69.1981 397.213 80.99 397.213 80.99L392.947 78.8768C392.947 78.8768 408.088 53.09 408.965 51.5949" fill="currentColor"/>
+        </g>
+      </svg>
+    </div>
+    <span class="font-extrabold text-white text-xs sm:text-sm tracking-tight flex-shrink-0">CADPH</span>
+    <span class="text-white/40 text-xs hidden sm:inline-block">|</span>
+    <span class="text-[11px] text-cyan-100 font-medium tracking-wide truncate sm:hidden">Garzón • Huila</span>
+    <span class="text-xs text-cyan-100 font-medium tracking-wide hidden sm:inline truncate">Juego de la Memoria · Reglamento del Aprendiz</span>
+  </div>
+  <div class="flex items-center flex-shrink-0 gap-2">
+    <button id="btnRestart" class="hidden bg-sena-green hover:bg-sena-hover px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold text-white transition items-center gap-1.5 shadow-sm hover:shadow whitespace-nowrap">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      <span class="hidden sm:inline">Reiniciar juego</span>
+      <span class="sm:hidden">Reiniciar</span>
+    </button>
+  </div>
+</header>
+
+<!-- ================= FONDO INSTITUCIONAL ================= -->
+<main class="flex-1 w-full relative overflow-x-hidden overflow-y-auto">
+  <div class="absolute inset-0 bg-gradient-to-br from-[#092a38] via-[#0b4860] to-[#0a5263] opacity-95 pointer-events-none"></div>
+  <div class="absolute inset-0 bg-grid-dots pointer-events-none opacity-40"></div>
+  <div class="absolute -right-40 -top-40 w-[600px] h-[600px] bg-sena-green/10 rounded-full blur-3xl pointer-events-none"></div>
+
+  <div class="relative z-10 max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+
+    <!-- ============ VISTA 1: REGISTRO DE GRUPOS ============ -->
+    <section id="setupView">
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center gap-3 mb-3">
+          <div class="bg-sena-green text-white font-extrabold text-lg sm:text-xl px-3 py-1.5 rounded-xl shadow-lg">ADSO</div>
+          <h1 class="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white">Juego de la <span class="font-light text-cyan-200">Memoria</span></h1>
+        </div>
+        <p class="text-slate-200 text-sm sm:text-base max-w-2xl mx-auto font-light">
+          Pon a prueba lo aprendido del <strong>Acuerdo 009 de 2024 — Reglamento del Aprendiz SENA</strong>. Destapa una carta, responde la pregunta y si aciertas la carta se voltea. Encuentra las parejas para sumar puntos para tu equipo.
+        </p>
+      </div>
+
+      <div class="glass-card rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-2xl max-w-3xl mx-auto border border-white/20">
+        <div class="flex items-center gap-2 mb-5">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <h2 class="font-bold text-base sm:text-lg">Registra los 4 equipos</h2>
+        </div>
+
+        <form id="setupForm" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Group inputs injected by JS -->
+        </form>
+
+        <div class="mt-6 bg-black/20 border border-white/10 rounded-xl p-4 text-xs sm:text-sm text-cyan-100 leading-relaxed">
+          <strong class="text-sena-accent">Reglas del juego:</strong>
+          Cada turno, un equipo destapa una carta y responde una pregunta. Si acierta, la carta gira y puede destapar una segunda carta nueva. Si falla, la carta vuelve a su estado normal y el turno pasa al siguiente equipo. Si las dos figuras destapadas coinciden, el equipo gana un punto y continúa jugando; si no coinciden, las cartas se ocultan de nuevo y cede el turno.
+        </div>
+
+        <button id="btnStartGame" type="button" class="mt-6 w-full bg-sena-green hover:bg-sena-hover text-white font-semibold py-3 sm:py-3.5 px-6 rounded-full shadow-lg hover:shadow-2xl transition-all duration-300 flex items-center justify-center gap-2.5 text-sm tracking-wide group">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Comenzar partida
+        </button>
+      </div>
+    </section>
+
+    <!-- ============ VISTA 2: JUEGO ============ -->
+    <section id="gameView" class="hidden">
+
+      <!-- Marcador de equipos -->
+      <div id="scoreboard" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5"></div>
+
+      <!-- Turno actual -->
+      <div class="glass-card rounded-2xl p-3.5 sm:p-4 mb-5 flex items-center justify-between flex-wrap gap-3 border border-white/20">
+        <div class="flex items-center gap-3">
+          <span class="text-xs uppercase tracking-wider text-cyan-200 font-bold">Turno Grupo:</span>
+          <span id="currentTurnName" class="text-lg sm:text-xl font-extrabold"></span>
+        </div>
+        <div class="flex items-center gap-4 text-xs sm:text-sm text-cyan-100">
+          <span><strong id="pairsFound">0</strong> / <span id="pairsTotal">10</span> parejas</span>
+        </div>
+      </div>
+
+      <!-- Tablero -->
+      <div class="board-wrapper w-full">
+        <div id="board" class="grid gap-2 sm:gap-2.5" style="grid-template-columns: repeat(4, 1fr);"></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- ================= MODAL DE PREGUNTA ================= -->
+<div id="quizModal" class="modal-overlay">
+  <div class="modal-box glass-card rounded-2xl p-6 sm:p-7 max-w-lg w-full border border-sena-green/40 shadow-2xl bg-[#0e2230]/95">
+    <div class="flex items-center justify-between mb-4">
+      <span id="quizCategoryBadge" class="text-[11px] font-bold uppercase tracking-wider bg-sena-green/20 border border-sena-green/40 text-sena-accent px-2.5 py-1 rounded-md"></span>
+      <span id="quizTeamBadge" class="text-[11px] font-bold uppercase tracking-wider bg-white/10 border border-white/20 px-2.5 py-1 rounded-md"></span>
+    </div>
+    <h3 id="quizQuestionText" class="text-base sm:text-lg font-bold leading-snug mb-5"></h3>
+    <div id="quizOptions" class="flex flex-col gap-2.5"></div>
+    <div id="quizFeedback" class="mt-4 text-sm font-semibold hidden"></div>
+  </div>
+</div>
+
+<!-- ================= MODAL DE VICTORIA ================= -->
+<div id="winModal" class="modal-overlay">
+  <div class="modal-box glass-card rounded-3xl p-7 sm:p-9 max-w-md w-full text-center border border-sena-green/40 shadow-2xl bg-[#0e2230]/95">
+    <div class="flex items-center justify-center mb-4">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.6"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 4h3a2 2 0 0 1 2 2 5 5 0 0 1-5 5"/><path d="M7 4H4a2 2 0 0 0-2 2 5 5 0 0 0 5 5"/></svg>
+    </div>
+    <h2 class="text-2xl font-extrabold mb-1">¡Juego terminado!</h2>
+    <p id="winSubtitle" class="text-cyan-200 text-sm mb-5">Resultados finales</p>
+    <div id="winRanking" class="flex flex-col gap-2 mb-6 text-left"></div>
+    <button id="btnPlayAgain" class="w-full bg-sena-green hover:bg-sena-hover text-white font-semibold py-3 rounded-full shadow-lg transition-all duration-300 text-sm">
+      Jugar de nuevo
+    </button>
+  </div>
+</div>
+
+<!-- ================= MODAL DE CONFIRMACIÓN (REINICIAR) ================= -->
+<div id="confirmModal" class="modal-overlay">
+  <div class="modal-box glass-card rounded-2xl p-6 sm:p-7 max-w-sm w-full text-center border border-amber-400/40 shadow-2xl bg-[#0e2230]/95">
+    <div class="flex items-center justify-center mb-4">
+      <div class="w-12 h-12 rounded-full bg-amber-400/15 border border-amber-400/40 flex items-center justify-center">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      </div>
+    </div>
+    <h3 class="text-lg font-extrabold mb-2">¿Reiniciar la partida?</h3>
+    <p class="text-sm text-cyan-100 mb-6">Se perderá el progreso actual y volverás al registro de equipos.</p>
+    <div class="flex gap-3">
+      <button id="btnCancelRestart" class="flex-1 bg-white/5 hover:bg-white/10 border border-white/15 text-white font-semibold py-2.5 rounded-xl text-sm transition">
+        Cancelar
+      </button>
+      <button id="btnConfirmRestart" class="flex-1 bg-sena-green hover:bg-sena-hover text-white font-semibold py-2.5 rounded-xl text-sm transition">
+        Sí, reiniciar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= TOAST ================= -->
+<div id="toast" class="toast">
+  <div class="glass-card rounded-xl px-5 py-3 border border-sena-green/50 bg-[#0e2230]/95 shadow-2xl flex items-center gap-2.5">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>
+    <span id="toastText" class="text-sm font-semibold"></span>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   BANCO DE 60 PREGUNTAS — Acuerdo 009 de 2024 (SENA)
+   ========================================================= */
+const QUESTION_BANK = [
+  { cat: "Derechos del aprendiz", q: "Según sus derechos, ¿cómo debe ser tratado un aprendiz SENA por la comunidad educativa?", opts: ["Con respeto", "Con favoritismo", "Con indiferencia", "Con amenazas"], correct: 0 },
+  { cat: "Derechos del aprendiz", q: "¿Cómo tiene derecho a ser evaluado un aprendiz SENA?", opts: ["Por amistad", "Objetivamente", "Por asistencia sola", "Al azar"], correct: 1 },
+  { cat: "Derechos del aprendiz", q: "¿En cuántos días hábiles tiene derecho el aprendiz a conocer el resultado de su evaluación?", opts: ["3", "5", "8", "15"], correct: 2 },
+  { cat: "Derechos del aprendiz", q: "¿Tiene el aprendiz derecho a solicitar la revisión de una evaluación con la que no está de acuerdo?", opts: ["Nunca", "Solo al final", "Solo una vez al año", "Sí"], correct: 3 },
+  { cat: "Derechos del aprendiz", q: "¿Qué derecho tiene el aprendiz antes de que se le imponga una sanción?", opts: ["Debido proceso", "Castigo inmediato", "Expulsión automática", "Ninguno"], correct: 0 },
+  { cat: "Derechos del aprendiz", q: "¿Tiene el aprendiz derecho a expresar con libertad sus ideas y pensamientos, en el marco del respeto?", opts: ["No", "Sí", "Solo por escrito", "Solo en privado"], correct: 1 },
+  { cat: "Derechos del aprendiz", q: "¿Tiene el aprendiz derecho a participar en la elección de representantes de aprendices?", opts: ["No", "Solo el instructor", "Sí", "Solo el coordinador"], correct: 2 },
+  { cat: "Derechos del aprendiz", q: "¿Qué derecho tiene un aprendiz que se reconoce como persona con discapacidad?", opts: ["Exención total", "Notas automáticas", "Menos actividades", "Ajustes razonables"], correct: 3 },
+  { cat: "Derechos del aprendiz", q: "¿Tiene el aprendiz derecho a presentar peticiones respetuosas y recibir respuesta oportuna?", opts: ["Sí", "No", "Solo presencial", "Solo verbalmente"], correct: 0 },
+  { cat: "Derechos del aprendiz", q: "¿Cuándo tiene derecho el aprendiz a obtener su certificación o título?", opts: ["Al matricularse", "Al cumplir requisitos", "Al terminar la inducción", "Al solicitarla"], correct: 1 },
+
+  { cat: "Deberes y prohibiciones", q: "¿Qué debe hacer el aprendiz con sus datos personales registrados en los sistemas del SENA?", opts: ["Ocultarlos", "Cambiarlos por otros", "Actualizarlos", "Compartirlos"], correct: 2 },
+  { cat: "Deberes y prohibiciones", q: "Como deber del aprendiz, ¿qué debe hacer con las evidencias de aprendizaje?", opts: ["Ignorarlas", "Copiarlas", "Entregarlas al final", "Entregarlas a tiempo"], correct: 3 },
+  { cat: "Deberes y prohibiciones", q: "¿Quién debe realizar personalmente las evaluaciones y actividades de formación del aprendiz?", opts: ["El aprendiz", "Un familiar", "Un compañero", "Un tercero"], correct: 0 },
+  { cat: "Deberes y prohibiciones", q: "Como deber del aprendiz, ¿qué debe hacer con los ambientes y equipos del SENA?", opts: ["Venderlos", "Cuidarlos", "Prestarlos sin permiso", "Dañarlos"], correct: 1 },
+  { cat: "Deberes y prohibiciones", q: "¿Puede el aprendiz compartir su contraseña institucional, que es personal e intransferible?", opts: ["Sí", "Con amigos", "No", "Con cualquier aprendiz"], correct: 2 },
+  { cat: "Deberes y prohibiciones", q: "¿Qué debe respetar el aprendiz en los trabajos y documentos que entrega?", opts: ["Solo el formato", "Solo el título", "Solo la portada", "Derechos de autor"], correct: 3 },
+  { cat: "Deberes y prohibiciones", q: "Como deber del aprendiz, ¿qué debe hacer si falta a una actividad de formación?", opts: ["Justificar", "Ignorar", "Esperar al cierre", "Retirarse"], correct: 0 },
+  { cat: "Deberes y prohibiciones", q: "¿Está permitido para el aprendiz entregar como propio un trabajo copiado (plagio)?", opts: ["Sí", "No", "Si lo modifica", "Si nadie lo nota"], correct: 1 },
+  { cat: "Deberes y prohibiciones", q: "¿Está permitido para el aprendiz falsificar una incapacidad médica?", opts: ["Sí", "Con autorización", "No", "Si falta mucho"], correct: 2 },
+  { cat: "Deberes y prohibiciones", q: "¿En qué casos está permitido que el aprendiz suplante la identidad de otro aprendiz?", opts: ["En evaluaciones", "En trámites", "En plataformas", "Nunca"], correct: 3 },
+  { cat: "Deberes y prohibiciones", q: "Como deber del aprendiz, ¿qué debe hacer con los elementos de protección personal entregados por el SENA?", opts: ["Utilizarlos", "Venderlos", "Ignorarlos", "Prestarlos siempre"], correct: 0 },
+  { cat: "Deberes y prohibiciones", q: "¿Se le permite al aprendiz discriminar a un compañero de la comunidad SENA?", opts: ["A veces", "No", "En redes", "Fuera de clase"], correct: 1 },
+
+  { cat: "Inasistencias e incumplimientos", q: "¿Con cuánto tiempo de anticipación debe el aprendiz informar al instructor una inasistencia programada?", opts: ["1 día antes", "1 semana", "5 días después", "15 días antes"], correct: 0 },
+  { cat: "Inasistencias e incumplimientos", q: "¿En cuánto tiempo debe el aprendiz reportar al instructor una inasistencia no programada (imprevista)?", opts: ["2 días", "5 días hábiles", "10 días", "1 mes"], correct: 1 },
+  { cat: "Inasistencias e incumplimientos", q: "¿Qué soporte permite justificar una inasistencia por motivos médicos?", opts: ["Un mensaje", "Una llamada", "Incapacidad médica", "Una fotografía"], correct: 2 },
+  { cat: "Inasistencias e incumplimientos", q: "Según el reglamento, ¿cuál de estas SÍ es una causal válida de inasistencia no programada si se presenta el soporte correspondiente?", opts: ["Paseo personal", "Vacaciones", "Fiesta familiar", "Calamidad doméstica"], correct: 3 },
+  { cat: "Inasistencias e incumplimientos", q: "¿A quién debe informar el aprendiz, como primera instancia, la justificación de una inasistencia?", opts: ["El instructor", "Un compañero", "El vigilante", "El proveedor"], correct: 0 },
+  { cat: "Inasistencias e incumplimientos", q: "Si la justificación de una inasistencia no cumple las causales establecidas en el reglamento, ¿cómo se califica?", opts: ["Se aprueba", "Es injustificada", "Se certifica", "Se archiva"], correct: 1 },
+  { cat: "Inasistencias e incumplimientos", q: "¿Quiénes fijan el cronograma de actividades pendientes del aprendiz tras una inasistencia justificada?", opts: ["Los compañeros", "El aprendiz solo", "Los instructores", "Un familiar"], correct: 2 },
+  { cat: "Inasistencias e incumplimientos", q: "En formación presencial, ¿cuántos días CONTINUOS de inasistencia injustificada configuran deserción?", opts: ["1", "2", "5", "3"], correct: 3 },
+  { cat: "Inasistencias e incumplimientos", q: "En formación presencial, ¿cuántos días NO continuos (acumulados) de inasistencia injustificada configuran deserción?", opts: ["5", "8", "10", "15"], correct: 0 },
+  { cat: "Inasistencias e incumplimientos", q: "En formación virtual, ¿cuántas citaciones seguidas del instructor, sin atender, pueden configurar deserción?", opts: ["2", "3", "5", "8"], correct: 1 },
+  { cat: "Inasistencias e incumplimientos", q: "En formación virtual, ¿cuántos días consecutivos sin ingresar a la plataforma LMS pueden configurar deserción?", opts: ["5", "10", "20", "30"], correct: 2 },
+  { cat: "Inasistencias e incumplimientos", q: "En etapa productiva, ¿cuántos días consecutivos de inasistencia injustificada a la empresa configuran deserción?", opts: ["1", "5", "10", "3"], correct: 3 },
+
+  { cat: "Novedades académicas", q: "¿Qué novedad académica debe solicitar un aprendiz que quiere cambiar de Centro de Formación?", opts: ["Traslado", "Aplazamiento", "Reintegro", "Certificación"], correct: 0 },
+  { cat: "Novedades académicas", q: "Durante todo su proceso formativo, ¿cuántos traslados puede solicitar un aprendiz?", opts: ["3", "1", "5", "Ilimitados"], correct: 1 },
+  { cat: "Novedades académicas", q: "Para que proceda un traslado, ¿qué avance mínimo debe haber completado el aprendiz en su formación?", opts: ["Una semana", "Un mes", "Primer trimestre", "Etapa productiva"], correct: 2 },
+  { cat: "Novedades académicas", q: "Para autorizar un traslado a otro programa o centro, ¿qué condición de disponibilidad se exige?", opts: ["Tener deudas", "Tener sanciones", "Faltar mucho", "Tener cupo"], correct: 3 },
+  { cat: "Novedades académicas", q: "¿Puede un aprendiz solicitar traslado si tiene sanciones académicas o disciplinarias vigentes?", opts: ["No", "Sí", "Siempre", "Sin revisión"], correct: 0 },
+  { cat: "Novedades académicas", q: "¿Qué novedad académica suspende temporalmente la formación del aprendiz?", opts: ["Retiro", "Aplazamiento", "Traslado", "Deserción"], correct: 1 },
+  { cat: "Novedades académicas", q: "¿Cuál es la ausencia mínima continua que puede motivar la solicitud de un aplazamiento?", opts: ["5 días", "10 días", "20 días", "2 días"], correct: 2 },
+  { cat: "Novedades académicas", q: "¿Cuál es el plazo inicial máximo ordinario que puede durar un aplazamiento?", opts: ["1 mes", "2 meses", "6 meses", "3 meses"], correct: 3 },
+  { cat: "Novedades académicas", q: "¿Cuál de las siguientes es una causa que puede justificar un aplazamiento?", opts: ["Incapacidad médica", "Bajas notas", "Falta de interés", "Olvido"], correct: 0 },
+  { cat: "Novedades académicas", q: "¿Qué novedad académica permite al aprendiz volver a su proceso de formación después de un aplazamiento?", opts: ["Deserción", "Reintegro", "Cancelación", "Inscripción"], correct: 1 },
+  { cat: "Novedades académicas", q: "¿Con cuánta anticipación al vencimiento del aplazamiento debe el aprendiz solicitar su reintegro?", opts: ["1 día", "2 días", "5 días hábiles", "30 días"], correct: 2 },
+  { cat: "Novedades académicas", q: "¿Qué novedad académica solicita el aprendiz que decide dejar definitivamente su programa de formación?", opts: ["Traslado", "Reintegro", "Aplazamiento", "Retiro voluntario"], correct: 3 },
+  { cat: "Novedades académicas", q: "Si el retiro voluntario del aprendiz no tiene una causa justificada, ¿qué puede generarle?", opts: ["Falta grave", "Un premio", "Aprobación", "Un traslado"], correct: 0 },
+  { cat: "Novedades académicas", q: "¿Qué trámite permite a una persona regresar al SENA después de una desvinculación, si cumple los requisitos?", opts: ["Traslado", "Reingreso", "Aplazamiento", "Inducción"], correct: 1 },
+
+  { cat: "Faltas y sanciones", q: "¿Qué tipo de falta está relacionada con el incumplimiento de los deberes académicos del aprendiz?", opts: ["Ambiental", "Laboral", "Académica", "Financiera"], correct: 2 },
+  { cat: "Faltas y sanciones", q: "¿Qué tipo de falta está relacionada con factores comportamentales del aprendiz?", opts: ["Técnica", "Económica", "Administrativa", "Disciplinaria"], correct: 3 },
+  { cat: "Faltas y sanciones", q: "Según su gravedad, ¿en qué tres categorías se clasifican las faltas del aprendiz?", opts: ["Leves, graves y gravísimas", "Buenas y malas", "Internas y externas", "Altas y bajas"], correct: 0 },
+  { cat: "Faltas y sanciones", q: "¿Qué garantía debe respetarse siempre antes de imponerle una sanción al aprendiz?", opts: ["Rapidez", "Debido proceso", "Votación grupal", "Castigo inmediato"], correct: 1 },
+  { cat: "Faltas y sanciones", q: "¿Qué órgano del Centro de Formación revisa y confirma los casos de deserción?", opts: ["Tesorería", "Biblioteca", "Comité de Evaluación y Seguimiento", "Almacén"], correct: 2 },
+  { cat: "Faltas y sanciones", q: "Cuando el Comité de Evaluación y Seguimiento confirma una deserción, ¿cómo califica la falta del aprendiz?", opts: ["Leve", "Positiva", "Sin falta", "Grave"], correct: 3 },
+  { cat: "Faltas y sanciones", q: "¿Qué medida formativa académica busca ayudar al aprendiz a superar resultados de aprendizaje no alcanzados?", opts: ["Plan de mejoramiento", "Cancelación inmediata", "Traslado", "Certificación"], correct: 0 },
+  { cat: "Faltas y sanciones", q: "¿Cuántos llamados de atención académicos escritos puede recibir el aprendiz como máximo por fase del proyecto formativo?", opts: ["1", "2", "4", "6"], correct: 1 },
+  { cat: "Faltas y sanciones", q: "¿Cuál es el plazo máximo de ejecución de un plan de mejoramiento académico?", opts: ["5 días", "10 días", "20 días calendario", "60 días"], correct: 2 },
+  { cat: "Faltas y sanciones", q: "¿Cuántos planes de mejoramiento académico puede tener el aprendiz como máximo por fase del proyecto formativo?", opts: ["1", "3", "5", "2"], correct: 3 },
+  { cat: "Faltas y sanciones", q: "¿Cuál de las siguientes es una medida sancionatoria contemplada en el reglamento?", opts: ["Condicionamiento de matrícula", "Felicitación", "Beca", "Mención de honor"], correct: 0 },
+  { cat: "Faltas y sanciones", q: "¿Qué sanción retira definitivamente al aprendiz del programa de formación?", opts: ["Llamado verbal", "Cancelación de matrícula", "Retroalimentación", "Reconocimiento"], correct: 1 }
+];
+
+/* =========================================================
+   FIGURAS DEL TABLERO (10 parejas = 20 cartas)
+   Cada figura: icono SVG limpio + color de acento propio
+   ========================================================= */
+const ICON_SVGS = [
+  { // Balanza — derechos / debido proceso
+    color: "#f59e0b",
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5v19"/><path d="M4.5 21.5h15"/><path d="M12 6 4.5 8.5"/><path d="M12 6 19.5 8.5"/><path d="M4.5 8.5 2 14a2.8 2.8 0 0 0 5 0L4.5 8.5Z"/><path d="M19.5 8.5 17 14a2.8 2.8 0 0 0 5 0l-2.5-5.5Z"/></svg>`
+  },
+  { // Libro abierto — deberes y reglamento
+    color: "#38bdf8",
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5c-2.2-1.7-5.2-2.3-9-2v13c3.8-.3 6.8.3 9 2 2.2-1.7 5.2-2.3 9-2v-13c-3.8-.3-6.8.3-9 2Z"/><path d="M12 6.5v13"/></svg>`
+  },
+  { // Escudo con check — protección / cumplimiento
+    color: "#34d399",
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 4 5.5v6c0 5.2 3.4 8.8 8 10 4.6-1.2 8-4.8 8-10v-6L12 2.5Z"/><path d="m8.5 12 2.4 2.4L16 9.5"/></svg>`
+  },
+  { // Candado — confidencialidad / contraseñas
+    color: "#a78bfa",
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15.3" r="1.5"/><path d="M12 16.8v2"/></svg>`
+  },
+  { // Calendario tachado — inasistencias
+    color: "#fb7185",
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2.2"/><path d="M3.5 10h17"/><path d="M8 2.5v4"/><path d="M16 2.5v4"/><path d="m8.5 14 7 4"/><path d="m15.5 14-7 4"/></svg>`
+  },
+  { // Flechas circulares — traslado / novedad
+    color: "#22d3ee",
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 0 1 14.5-6"/><path d="M18 2.5v4.5h-4.5"/><path d="M20.5 12a8.5 8.5 0 0 1-14.5 6"/><path d="M6 21.5V17h4.5"/></svg>`
+  },
+  { // Pausa en círculo — aplazamiento
+    color: "#fb923c",
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.8 8.5v7"/><path d="M14.2 8.5v7"/></svg>`
+  },
+  { // Alerta — faltas y sanciones
+    color: "#f87171",
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20.5h20L12 3Z"/><path d="M12 9.5v5"/><circle cx="12" cy="17.3" r="0.95" fill="currentColor" stroke="none"/></svg>`
+  },
+  { // Mazo — sanción disciplinaria
+    color: "#e879f9",
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="12.3" y="2.8" width="5" height="8" rx="1" transform="rotate(45 14.8 6.8)"/><path d="m11.2 9.4-6.8 6.8"/><path d="m14.6 12.8-2.1-2.1"/><path d="M3 21h7"/></svg>`
+  },
+  { // Medalla — certificación
+    color: "#facc15",
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="5.5"/><path d="M9 13.2 7.3 21l4.7-2.6 4.7 2.6-1.7-7.8"/></svg>`
+  }
+];
+const ICONS = ICON_SVGS;
+
+const TEAM_COLORS = [
+  { bg: "bg-sena-green", text: "text-sena-green", hex: "#39a900" },
+  { bg: "bg-cyan-500", text: "text-cyan-400", hex: "#22d3ee" },
+  { bg: "bg-amber-500", text: "text-amber-400", hex: "#f59e0b" },
+  { bg: "bg-fuchsia-500", text: "text-fuchsia-400", hex: "#d946ef" }
+];
+
+/* =========================================================
+   ESTADO DEL JUEGO
+   ========================================================= */
+let groups = [];
+let currentTurn = 0;
+let board = [];
+let firstPick = null;   // { cardId, icon }
+let turnLocked = false; // bloquea clicks mientras se resuelve una jugada
+let pairsFound = 0;
+let questionQueue = [];
+
+/* ---------- Persistencia en localStorage ---------- */
+const STORAGE_KEY = "memoria_sena_partida_v1";
+
+function saveState() {
+  try {
+    const state = {
+      groups: groups.map(g => ({ name: g.name, score: g.score, colorIndex: TEAM_COLORS.indexOf(g.color) })),
+      currentTurn,
+      pairsFound,
+      board: board.map(c => ({ id: c.id, iconIndex: ICON_SVGS.indexOf(c.icon), revealed: c.revealed, matched: c.matched })),
+      firstPick: firstPick ? { cardId: firstPick.cardId, iconIndex: ICON_SVGS.indexOf(firstPick.icon) } : null
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    /* almacenamiento no disponible; el juego sigue funcionando sin persistencia */
+  }
+}
+
+function clearSavedState() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+}
+
+function loadSavedState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const state = JSON.parse(raw);
+    if (!state || !Array.isArray(state.groups) || state.groups.length !== 4 || !Array.isArray(state.board) || state.board.length === 0) {
+      return null;
+    }
+    return state;
+  } catch (e) {
+    return null;
+  }
+}
+
+function restoreFromState(state) {
+  groups = state.groups.map(g => ({ name: g.name, score: g.score, color: TEAM_COLORS[g.colorIndex] || TEAM_COLORS[0] }));
+  currentTurn = state.currentTurn || 0;
+  pairsFound = state.pairsFound || 0;
+  board = state.board.map(c => ({ id: c.id, icon: ICON_SVGS[c.iconIndex], revealed: !!c.revealed, matched: !!c.matched }));
+  firstPick = state.firstPick ? { cardId: state.firstPick.cardId, icon: ICON_SVGS[state.firstPick.iconIndex] } : null;
+  turnLocked = false;
+
+  refillQuestionQueue();
+  pairsTotalEl.textContent = ICONS.length;
+  renderBoard();
+  renderScoreboard();
+  updateTurnBanner();
+
+  setupView.classList.add("hidden");
+  gameView.classList.remove("hidden");
+  showRestartButton();
+}
+
+const setupForm = document.getElementById("setupForm");
+const setupView = document.getElementById("setupView");
+const gameView = document.getElementById("gameView");
+const boardEl = document.getElementById("board");
+const scoreboardEl = document.getElementById("scoreboard");
+const currentTurnName = document.getElementById("currentTurnName");
+const pairsFoundEl = document.getElementById("pairsFound");
+const pairsTotalEl = document.getElementById("pairsTotal");
+
+const quizModal = document.getElementById("quizModal");
+const quizCategoryBadge = document.getElementById("quizCategoryBadge");
+const quizTeamBadge = document.getElementById("quizTeamBadge");
+const quizQuestionText = document.getElementById("quizQuestionText");
+const quizOptions = document.getElementById("quizOptions");
+const quizFeedback = document.getElementById("quizFeedback");
+
+const winModal = document.getElementById("winModal");
+const winRanking = document.getElementById("winRanking");
+const winSubtitle = document.getElementById("winSubtitle");
+
+const toastEl = document.getElementById("toast");
+const toastText = document.getElementById("toastText");
+
+const btnRestart = document.getElementById("btnRestart");
+function showRestartButton() {
+  btnRestart.classList.remove("hidden");
+  btnRestart.classList.add("flex");
+}
+function hideRestartButton() {
+  btnRestart.classList.add("hidden");
+  btnRestart.classList.remove("flex");
+}
+
+/* ---------- Formulario de registro de 4 equipos ---------- */
+function buildSetupForm() {
+  setupForm.innerHTML = "";
+  for (let i = 0; i < 4; i++) {
+    const color = TEAM_COLORS[i];
+    const wrap = document.createElement("div");
+    wrap.className = "flex items-center gap-3 bg-black/20 border border-white/10 rounded-xl px-4 py-3";
+    wrap.innerHTML = `
+      <span class="w-8 h-8 rounded-full ${color.bg} flex items-center justify-center font-extrabold text-xs text-white flex-shrink-0 shadow">
+        ${i + 1}
+      </span>
+      <input type="text" maxlength="24" id="groupInput${i}" placeholder="Nombre del equipo ${i + 1}"
+        class="bg-transparent outline-none text-sm font-semibold text-white placeholder:text-slate-400 w-full" />
+    `;
+    setupForm.appendChild(wrap);
+  }
+}
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function refillQuestionQueue() {
+  questionQueue = shuffle(QUESTION_BANK.map((_, idx) => idx));
+}
+
+function nextQuestion() {
+  if (questionQueue.length === 0) refillQuestionQueue();
+  const idx = questionQueue.pop();
+  return QUESTION_BANK[idx];
+}
+
+/* ---------- Iniciar partida ---------- */
+document.getElementById("btnStartGame").addEventListener("click", () => {
+  groups = [];
+  for (let i = 0; i < 4; i++) {
+    const input = document.getElementById("groupInput" + i);
+    const name = (input.value || "").trim() || `Equipo ${i + 1}`;
+    groups.push({ name, score: 0, color: TEAM_COLORS[i] });
+  }
+  currentTurn = 0;
+  pairsFound = 0;
+  firstPick = null;
+  turnLocked = false;
+  refillQuestionQueue();
+  buildBoard();
+  renderScoreboard();
+  updateTurnBanner();
+  saveState();
+
+  setupView.classList.add("hidden");
+  gameView.classList.remove("hidden");
+  showRestartButton();
+});
+
+/* ---------- Construir tablero ---------- */
+function buildBoard() {
+  const pairIcons = shuffle([...ICONS, ...ICONS]);
+  board = pairIcons.map((icon, i) => ({
+    id: i,
+    icon,
+    revealed: false,
+    matched: false
+  }));
+  pairsTotalEl.textContent = ICONS.length;
+  renderBoard();
+}
+
+function renderBoard() {
+  boardEl.innerHTML = "";
+  board.forEach(card => {
+    const cardEl = document.createElement("div");
+    cardEl.className = "mem-card" + (card.revealed || card.matched ? " is-flipped" : "") + (card.matched ? " is-matched" : "");
+    cardEl.dataset.id = card.id;
+    cardEl.innerHTML = `
+      <div class="mem-face mem-back">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#39a900" stroke-width="1.8" opacity="0.8"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="mem-face mem-front" style="--icon-color: ${card.icon.color}">
+        <div class="mem-front-icon">${card.icon.svg}</div>
+      </div>
+    `;
+    cardEl.addEventListener("click", () => onCardClick(card.id));
+    boardEl.appendChild(cardEl);
+  });
+  const cols = window.innerWidth < 560 ? 4 : 5;
+  boardEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+}
+
+/* ---------- Marcador ---------- */
+function renderScoreboard() {
+  scoreboardEl.innerHTML = "";
+  groups.forEach((g, i) => {
+    const pill = document.createElement("div");
+    pill.className = `group-pill glass-card rounded-xl px-4 py-3 flex items-center justify-between border border-white/15 ${i === currentTurn ? "is-active" : ""}`;
+    pill.style.setProperty("--pill-color", g.color.hex);
+    pill.innerHTML = `
+      <div class="flex items-center gap-2.5 min-w-0">
+        <span class="w-3 h-3 rounded-full ${g.color.bg} flex-shrink-0"></span>
+        <span class="font-bold text-sm truncate">${escapeHtml(g.name)}</span>
+      </div>
+      <span class="font-extrabold text-lg ${g.color.text} flex-shrink-0 ml-2">${g.score}</span>
+    `;
+    scoreboardEl.appendChild(pill);
+  });
+}
+
+function updateTurnBanner() {
+  const g = groups[currentTurn];
+  currentTurnName.textContent = g.name;
+  currentTurnName.className = "text-lg sm:text-xl font-extrabold " + g.color.text;
+  pairsFoundEl.textContent = pairsFound;
+  renderScoreboard();
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* ---------- Click en carta ---------- */
+function onCardClick(id) {
+  if (turnLocked) return;
+  const card = board.find(c => c.id === id);
+  if (!card || card.revealed || card.matched) return;
+  if (firstPick && firstPick.cardId === id) return;
+
+  openQuiz(card);
+}
+
+/* ---------- Modal de pregunta ---------- */
+let activeCardForQuiz = null;
+
+function openQuiz(card) {
+  turnLocked = true;
+  activeCardForQuiz = card;
+  const question = nextQuestion();
+  activeCardForQuiz.__question = question;
+
+  quizCategoryBadge.textContent = question.cat;
+  quizTeamBadge.textContent = groups[currentTurn].name;
+  quizTeamBadge.style.color = groups[currentTurn].color.hex;
+  quizQuestionText.textContent = question.q;
+  quizFeedback.classList.add("hidden");
+  quizFeedback.textContent = "";
+
+  quizOptions.innerHTML = "";
+  const letters = ["A", "B", "C", "D"];
+  question.opts.forEach((opt, idx) => {
+    const btn = document.createElement("button");
+    btn.className = "quiz-opt bg-white/5 border border-white/15 rounded-xl px-4 py-3 text-sm font-medium flex items-center gap-3";
+    btn.innerHTML = `<span class="font-extrabold ${groups[currentTurn].color.text}">${letters[idx]}</span><span>${escapeHtml(opt)}</span>`;
+    btn.addEventListener("click", () => resolveAnswer(idx === question.correct, idx));
+    quizOptions.appendChild(btn);
+  });
+
+  quizModal.classList.add("active");
+}
+
+function closeQuiz() {
+  quizModal.classList.remove("active");
+}
+
+function resolveAnswer(isCorrect, chosenIdx) {
+  const question = activeCardForQuiz.__question;
+  const buttons = quizOptions.querySelectorAll("button");
+  buttons.forEach((btn, idx) => {
+    btn.disabled = true;
+    if (idx === question.correct) btn.classList.add("correct");
+    else if (idx === chosenIdx && !isCorrect) btn.classList.add("wrong");
+  });
+
+  quizFeedback.classList.remove("hidden");
+  if (isCorrect) {
+    quizFeedback.textContent = "¡Correcto! La carta se voltea.";
+    quizFeedback.className = "mt-4 text-sm font-semibold text-sena-accent";
+  } else {
+    quizFeedback.textContent = "Respuesta incorrecta. La carta vuelve a su estado normal y cede el turno.";
+    quizFeedback.className = "mt-4 text-sm font-semibold text-red-400";
+  }
+
+  setTimeout(() => {
+    closeQuiz();
+    isCorrect ? handleCorrect(activeCardForQuiz) : handleWrong(activeCardForQuiz);
+  }, 1300);
+}
+
+/* ---------- Lógica de aciertos / fallos ---------- */
+function handleCorrect(card) {
+  card.revealed = true;
+  renderBoard();
+
+  if (!firstPick) {
+    firstPick = { cardId: card.id, icon: card.icon };
+    turnLocked = false;
+    return;
+  }
+
+  const first = board.find(c => c.id === firstPick.cardId);
+  if (first.icon === card.icon) {
+    first.matched = true;
+    card.matched = true;
+    pairsFound++;
+    groups[currentTurn].score++;
+    pairsFoundEl.textContent = pairsFound;
+    renderBoard();
+    renderScoreboard();
+    showToast(`¡Pareja encontrada! ${groups[currentTurn].name} suma un punto y continúa.`);
+    firstPick = null;
+    turnLocked = false;
+    saveState();
+
+    if (pairsFound === ICONS.length) {
+      setTimeout(endGame, 700);
+    }
+  } else {
+    setTimeout(() => {
+      first.revealed = false;
+      card.revealed = false;
+      renderBoard();
+      firstPick = null;
+      nextTurn();
+    }, 900);
+  }
+}
+
+function handleWrong(card) {
+  if (firstPick) {
+    const first = board.find(c => c.id === firstPick.cardId);
+    setTimeout(() => {
+      first.revealed = false;
+      renderBoard();
+      firstPick = null;
+      nextTurn();
+    }, 300);
+  } else {
+    nextTurn();
+  }
+}
+
+function nextTurn() {
+  currentTurn = (currentTurn + 1) % groups.length;
+  turnLocked = false;
+  updateTurnBanner();
+  saveState();
+}
+
+/* ---------- Toast ---------- */
+let toastTimer = null;
+function showToast(msg) {
+  toastText.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2600);
+}
+
+/* ---------- Fin del juego ---------- */
+function endGame() {
+  clearSavedState();
+  const ranked = groups.slice().sort((a, b) => b.score - a.score);
+  const topScore = ranked[0].score;
+  const winners = ranked.filter(g => g.score === topScore);
+
+  winSubtitle.textContent = winners.length > 1
+    ? `¡Empate entre ${winners.map(w => w.name).join(" y ")}!`
+    : `¡${winners[0].name} gana la partida!`;
+
+  winRanking.innerHTML = "";
+  ranked.forEach((g, i) => {
+    const row = document.createElement("div");
+    row.className = "flex items-center justify-between bg-black/25 border border-white/10 rounded-xl px-4 py-2.5";
+    row.innerHTML = `
+      <div class="flex items-center gap-2.5">
+        <span class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-extrabold ${i === 0 ? "bg-amber-500 text-black" : "bg-white/10 text-white"}">${i + 1}</span>
+        <span class="font-semibold text-sm">${escapeHtml(g.name)}</span>
+      </div>
+      <span class="font-extrabold ${g.color.text}">${g.score} pts</span>
+    `;
+    winRanking.appendChild(row);
+  });
+
+  winModal.classList.add("active");
+}
+
+document.getElementById("btnPlayAgain").addEventListener("click", () => {
+  winModal.classList.remove("active");
+  resetToSetup();
+});
+
+const confirmModal = document.getElementById("confirmModal");
+
+document.getElementById("btnRestart").addEventListener("click", () => {
+  if (gameView.classList.contains("hidden")) return;
+  confirmModal.classList.add("active");
+});
+
+document.getElementById("btnCancelRestart").addEventListener("click", () => {
+  confirmModal.classList.remove("active");
+});
+
+document.getElementById("btnConfirmRestart").addEventListener("click", () => {
+  confirmModal.classList.remove("active");
+  resetToSetup();
+});
+
+function resetToSetup() {
+  clearSavedState();
+  gameView.classList.add("hidden");
+  setupView.classList.remove("hidden");
+  hideRestartButton();
+  buildSetupForm();
+}
+
+window.addEventListener("resize", () => {
+  if (!gameView.classList.contains("hidden")) renderBoard();
+});
+
+/* ---------- Init ---------- */
+const savedState = loadSavedState();
+if (savedState) {
+  restoreFromState(savedState);
+} else {
+  buildSetupForm();
+}
+</script>
+</body>
+</html>
